@@ -1,0 +1,35 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    /*
+     * Overlay for MAX96724 GMSL2 Deserializer on CAM1 (i2c@1)
+     * Jetson Orin Nano: p3768-0000 + p3767-0005-super
+     */
+
+    compatible = "nvidia,p3768-0000+p3767-0005-super",
+                 "nvidia,p3767-0005",
+                 "nvidia,tegra234";
+
+    fragment@0 {
+        target-path = "/bus@0/cam_i2cmux/i2c@1";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            max96724_b@28 {
+                compatible = "maxim,max96724";
+                reg = <0x28>;
+                status = "okay";
+            };
+        };
+    };
+
+    /* Optionally disable the CAM0-side deserializer if it exists */
+    fragment@1 {
+        target-path = "/bus@0/cam_i2cmux/i2c@0/max96724_a@2e";
+        __overlay__ {
+            status = "disabled";
+        };
+    };
+};
