@@ -2,15 +2,11 @@
 /plugin/;
 
 / {
-    /*
-     * Overlay for MAX96724 GMSL2 Deserializer on CAM1 (i2c@1)
-     * Jetson Orin Nano: p3768-0000 + p3767-0005-super
-     */
-
     compatible = "nvidia,p3768-0000+p3767-0005-super",
                  "nvidia,p3767-0005",
                  "nvidia,tegra234";
 
+    /* === Fragment 0: Deserializer on CAM I2C bus (bus 10) === */
     fragment@0 {
         target-path = "/bus@0/cam_i2cmux/i2c@1";
         __overlay__ {
@@ -21,15 +17,76 @@
                 compatible = "maxim,max96724";
                 reg = <0x28>;
                 status = "okay";
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    port@0 {
+                        reg = <0>;
+                        max96724_out0: endpoint {
+                            bus-width = <2>;
+                            data-lanes = <1 2>;
+                            remote-endpoint = <&nvcsi_in0>;
+                        };
+                    };
+                };
             };
         };
     };
 
-    /* Optionally disable the CAM0-side deserializer if it exists */
+    /* === Fragment 1: NVCSI link === */
     fragment@1 {
-        target-path = "/bus@0/cam_i2cmux/i2c@0/max96724_a@2e";
+        target = <&nvcsi>;
         __overlay__ {
-            status = "disabled";
+            status = "okay";
+            num-channels = <1>;
+
+            channel@0 {
+                reg = <0>;
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    port@0 {
+                        reg = <0>;
+                        nvcsi_in0: endpoint {
+                            bus-width = <2>;
+                            data-lanes = <1 2>;
+                            remote-endpoint = <&max96724_out0>;
+                        };
+                    };
+
+                    port@1 {
+                        reg = <1>;
+                        nvcsi_out0: endpoint {
+                            remote-endpoint = <&vi_in0>;
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    /* === Fragment 2: VI chain to V4L2 === */
+    fragment@2 {
+        target = <&capture_vi>;
+        __overlay__ {
+            status = "okay";
+            num-channels = <1>;
+
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                port@0 {
+                    reg = <0>;
+                    vi_in0: endpoint {
+                        bus-width = <2>;
+                        remote-endpoint = <&nvcsi_out0>;
+                    };
+                };
+            };
         };
     };
 };
