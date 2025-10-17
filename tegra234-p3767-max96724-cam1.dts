@@ -1,0 +1,204 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/tegra234-p3767-0000-common.h>
+#include <dt-bindings/pinctrl/pinctrl-tegra.h>
+
+#define CAM1_PWDN               TEGRA234_MAIN_GPIO(Y, 0)
+#define CAM_I2C_MUX             TEGRA234_AON_GPIO(CC, 3)
+
+/ {
+    overlay-name = "Custom MAX96724 deserializer";
+    compatible = "nvidia,p3768-0000+p3767-0005-super",
+                 "nvidia,p3767-0005",
+                 "nvidia,tegra234";
+
+    /*
+     * Disable the vendor deserializers that occupy the CAM I2C branches so
+     * our custom hardware can bind without probe conflicts.
+     */
+    fragment@0 {
+        target-path = "/bus@0/cam_i2cmux/i2c@0/max96724_a@2e";
+        __overlay__ {
+            status = "disabled";
+        };
+    };
+
+    fragment@1 {
+        target-path = "/bus@0/cam_i2cmux/i2c@1";
+        __overlay__ {
+            max96724_b@4e {
+                status = "disabled";
+            };
+
+            max96724_custom: max96724@28 {
+                compatible = "maxim,max96724";
+                reg = <0x28>;
+                status = "okay";
+
+                reset-gpios = <&gpio CAM1_PWDN GPIO_ACTIVE_HIGH>;
+
+                i2c-mux {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    compatible = "i2c-mux-gpio";
+                    i2c-parent = <&cam_i2c>;
+                    mux-gpios = <&gpio_aon CAM_I2C_MUX GPIO_ACTIVE_HIGH>;
+
+                    max96724_custom_i2c_0: i2c@0 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        reg = <0>;
+
+                        future_camera0: camera@40 {
+                            status = "disabled";
+                        };
+                    };
+
+                    max96724_custom_i2c_1: i2c@1 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        reg = <1>;
+                    };
+
+                    max96724_custom_i2c_2: i2c@2 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        reg = <2>;
+                    };
+
+                    max96724_custom_i2c_3: i2c@3 {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        reg = <3>;
+                    };
+                };
+
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    port@0 {
+                        reg = <0>;
+                        max96724_out0: endpoint {
+                            bus-width = <2>;
+                            data-lanes = <1 2>;
+                            remote-endpoint = <&nvcsi_in0>;
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&nvcsi>;
+        __overlay__ {
+            status = "okay";
+            num-channels = <1>;
+
+            /delete-node/ channel@0;
+            /delete-node/ channel@1;
+            /delete-node/ channel@2;
+            /delete-node/ channel@3;
+            /delete-node/ channel@4;
+            /delete-node/ channel@5;
+            /delete-node/ channel@6;
+            /delete-node/ channel@7;
+
+            channel@0 {
+                reg = <0>;
+                ports {
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    port@0 {
+                        reg = <0>;
+                        nvcsi_in0: endpoint {
+                            bus-width = <2>;
+                            data-lanes = <1 2>;
+                            remote-endpoint = <&max96724_out0>;
+                        };
+                    };
+
+                    port@1 {
+                        reg = <1>;
+                        nvcsi_out0: endpoint {
+                            remote-endpoint = <&vi_in0>;
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@3 {
+        target = <&capture_vi>;
+        __overlay__ {
+            status = "okay";
+            num-channels = <1>;
+
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                /delete-node/ port@0;
+                /delete-node/ port@1;
+                /delete-node/ port@2;
+                /delete-node/ port@3;
+                /delete-node/ port@4;
+                /delete-node/ port@5;
+                /delete-node/ port@6;
+                /delete-node/ port@7;
+
+                port@0 {
+                    reg = <0>;
+                    vi_in0: endpoint {
+                        bus-width = <2>;
+                        remote-endpoint = <&nvcsi_out0>;
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@4 {
+        target = <&tcp>;
+        __overlay__ {
+            num_csi_lanes = <2>;
+            max_lane_speed = <1500000>;
+            min_bits_per_pixel = <16>;
+            vi_peak_byte_per_pixel = <2>;
+            vi_bw_margin_pct = <25>;
+
+            modules {
+                /delete-node/ module0;
+                /delete-node/ module1;
+                /delete-node/ module2;
+                /delete-node/ module3;
+                /delete-node/ module4;
+                /delete-node/ module5;
+                /delete-node/ module6;
+                /delete-node/ module7;
+
+                custom_module0: module0 {
+                    badge = "custom_front_MAX96724";
+                    position = "front";
+                    orientation = "1";
+
+                    custom_module0_drivernode0: drivernode0 {
+                        pcl_id = "v4l2_sensor";
+                        status = "disabled";
+                        sysfs-device-tree = "/sys/firmware/devicetree/base/bus@0/cam_i2cmux/i2c@1/max96724@28/i2c@0/camera@40";
+                    };
+                };
+            };
+        };
+    };
+};
