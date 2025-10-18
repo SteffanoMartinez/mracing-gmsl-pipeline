@@ -1,12 +1,11 @@
 /dts-v1/;
 /plugin/;
 
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/tegra234-p3767-0000-common.h>
-#include <dt-bindings/pinctrl/pinctrl-tegra.h>
+#define CAM1_PWDN_GPIO          0xa6 /* TEGRA234_MAIN_GPIO(Y, 0) */
+#define CAM_I2C_MUX_GPIO        0x13 /* TEGRA234_AON_GPIO(CC, 3) */
 
-#define CAM1_PWDN               TEGRA234_MAIN_GPIO(Y, 0)
-#define CAM_I2C_MUX             TEGRA234_AON_GPIO(CC, 3)
+#define CAM1_LANES              2
+#define CAM1_LANE_STR           "2"
 
 / {
     overlay-name = "Custom MAX96724 deserializer";
@@ -28,6 +27,8 @@
     fragment@1 {
         target-path = "/bus@0/cam_i2cmux/i2c@1";
         __overlay__ {
+            /delete-node/ max96724_b@28;
+
             max96724_b@4e {
                 status = "disabled";
             };
@@ -37,15 +38,19 @@
                 reg = <0x28>;
                 status = "okay";
 
-                reset-gpios = <&gpio CAM1_PWDN GPIO_ACTIVE_HIGH>;
+                reset-gpios = <&gpio CAM1_PWDN_GPIO 0>;
 
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                /* Route downstream I2C devices through the GPIO mux. */
                 i2c-mux {
                     #address-cells = <1>;
                     #size-cells = <0>;
 
                     compatible = "i2c-mux-gpio";
                     i2c-parent = <&cam_i2c>;
-                    mux-gpios = <&gpio_aon CAM_I2C_MUX GPIO_ACTIVE_HIGH>;
+                    mux-gpios = <&gpio_aon CAM_I2C_MUX_GPIO 0>;
 
                     max96724_custom_i2c_0: i2c@0 {
                         #address-cells = <1>;
@@ -53,8 +58,75 @@
 
                         reg = <0>;
 
-                        future_camera0: camera@40 {
-                            status = "disabled";
+                        custom_tevs_0: camera@40 {
+                            compatible = "tn,tevs";
+                            reg = <0x40>;
+                            status = "okay";
+
+                            data-lanes = <CAM1_LANES>;
+                            data-frequency = <0x230>;
+
+                            devnode = "video0";
+                            physical_w = "3.680";
+                            physical_h = "2.760";
+                            sensor_model = "tevs";
+                            use_sensor_mode_id = "false";
+
+                            mode0 {
+                                mclk_khz = "24000";
+                                num_lanes = CAM1_LANE_STR;
+                                tegra_sinterface = "serial_c";
+                                phy_mode = "DPHY";
+                                discontinuous_clk = "yes";
+                                dpcm_enable = "false";
+                                cil_settletime = "0";
+
+                                active_w = "1920";
+                                active_h = "1080";
+                                mode_type = "yuv";
+                                pixel_phase = "uyvy";
+                                csi_pixel_bit_depth = "16";
+                                readout_orientation = "0";
+                                line_length = "2200";
+                                inherent_gain = "1";
+                                mclk_multiplier = "9.33";
+                                pix_clk_hz = "148500000";
+                                serdes_pix_clk_hz = "600000000";
+
+                                gain_factor = "16";
+                                framerate_factor = "1000000";
+                                exposure_factor = "1000000";
+                                min_gain_val = "16"; /* 1.00x */
+                                max_gain_val = "170"; /* 10.66x */
+                                step_gain_val = "1";
+                                default_gain = "16"; /* 1.00x */
+                                min_hdr_ratio = "1";
+                                max_hdr_ratio = "1";
+                                min_framerate = "15000000"; /* 15.0 fps */
+                                max_framerate = "60000000"; /* 60.0 fps */
+                                step_framerate = "1";
+                                default_framerate = "60000000"; /* 60.0 fps */
+                                min_exp_time = "13"; /* us */
+                                max_exp_time = "683709"; /* us */
+                                step_exp_time = "1";
+                                default_exp_time = "2495"; /* us */
+                                embedded_metadata_height = "0";
+                            };
+
+                            ports {
+                                #address-cells = <1>;
+                                #size-cells = <0>;
+
+                                port@0 {
+                                    reg = <0>;
+
+                                    custom_tevs_0_out: endpoint {
+                                        port-index = <2>;
+                                        bus-width = <CAM1_LANES>;
+                                        remote-endpoint = <&csi_in0>;
+                                    };
+                                };
+                            };
                         };
                     };
 
@@ -80,18 +152,13 @@
                     };
                 };
 
-                ports {
-                    #address-cells = <1>;
-                    #size-cells = <0>;
+                channel@0 {
+                    reg = <0>;
+                    label = "deser_cam1_ch0";
 
-                    port@0 {
-                        reg = <0>;
-                        max96724_out0: endpoint {
-                            bus-width = <2>;
-                            data-lanes = <1 2>;
-                            remote-endpoint = <&nvcsi_in0>;
-                        };
-                    };
+                    clock-lanes = <5>;
+                    data-lanes = <1 2>;
+                    link-frequencies = <0x00 0x4a817c80>;
                 };
             };
         };
@@ -120,16 +187,18 @@
 
                     port@0 {
                         reg = <0>;
-                        nvcsi_in0: endpoint {
-                            bus-width = <2>;
-                            data-lanes = <1 2>;
-                            remote-endpoint = <&max96724_out0>;
+
+                        csi_in0: endpoint {
+                            port-index = <2>;
+                            bus-width = <CAM1_LANES>;
+                            remote-endpoint = <&custom_tevs_0_out>;
                         };
                     };
 
                     port@1 {
                         reg = <1>;
-                        nvcsi_out0: endpoint {
+
+                        csi_out0: endpoint {
                             remote-endpoint = <&vi_in0>;
                         };
                     };
@@ -159,9 +228,12 @@
 
                 port@0 {
                     reg = <0>;
+
                     vi_in0: endpoint {
-                        bus-width = <2>;
-                        remote-endpoint = <&nvcsi_out0>;
+                        vc-id = <0>;
+                        port-index = <2>;
+                        bus-width = <CAM1_LANES>;
+                        remote-endpoint = <&csi_out0>;
                     };
                 };
             };
@@ -171,8 +243,8 @@
     fragment@4 {
         target = <&tcp>;
         __overlay__ {
-            num_csi_lanes = <2>;
-            max_lane_speed = <1500000>;
+            num_csi_lanes = <CAM1_LANES>;
+            max_lane_speed = <1250000>;
             min_bits_per_pixel = <16>;
             vi_peak_byte_per_pixel = <2>;
             vi_bw_margin_pct = <25>;
@@ -188,14 +260,17 @@
                 /delete-node/ module7;
 
                 custom_module0: module0 {
+                    status = "okay";
                     badge = "custom_front_MAX96724";
                     position = "front";
                     orientation = "1";
 
                     custom_module0_drivernode0: drivernode0 {
                         pcl_id = "v4l2_sensor";
-                        status = "disabled";
-                        sysfs-device-tree = "/sys/firmware/devicetree/base/bus@0/cam_i2cmux/i2c@1/max96724@28/i2c@0/camera@40";
+                        status = "okay";
+                        devname = "video0";
+                        proc-device-tree = "/proc/device-tree/bus@0/cam_i2cmux/i2c@1/max96724@28/i2c-mux/i2c@0/camera@40";
+                        sysfs-device-tree = "/sys/firmware/devicetree/base/bus@0/cam_i2cmux/i2c@1/max96724@28/i2c-mux/i2c@0/camera@40";
                     };
                 };
             };
