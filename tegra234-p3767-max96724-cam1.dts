@@ -8,15 +8,12 @@
 #define CAM1_LANE_STR           "2"
 
 / {
-    overlay-name = "Custom MAX96724 deserializer";
+    overlay-name = "Custom MAX96724 + onsemi AR0234 (CAM1)";
     compatible = "nvidia,p3768-0000+p3767-0005-super",
                  "nvidia,p3767-0005",
                  "nvidia,tegra234";
 
-    /*
-     * Disable the vendor deserializers that occupy the CAM I2C branches so
-     * our custom hardware can bind without probe conflicts.
-     */
+    /* Disable vendor deserializers occupying the I²C branches */
     fragment@0 {
         target-path = "/bus@0/cam_i2cmux/i2c@0/max96724_a@2e";
         __overlay__ {
@@ -24,6 +21,7 @@
         };
     };
 
+    /* Custom MAX96724 and downstream AR0234 sensor */
     fragment@1 {
         target-path = "/bus@0/cam_i2cmux/i2c@1";
         __overlay__ {
@@ -43,34 +41,31 @@
                 #address-cells = <1>;
                 #size-cells = <0>;
 
-                /* Route downstream I2C devices through the GPIO mux. */
+                /* Downstream I²C mux to sensors */
                 i2c-mux {
                     #address-cells = <1>;
                     #size-cells = <0>;
-
                     compatible = "i2c-mux-gpio";
                     i2c-parent = <&cam_i2c>;
                     mux-gpios = <&gpio_aon CAM_I2C_MUX_GPIO 0>;
 
+                    /* ===== Channel 0: AR0234 sensor ===== */
                     max96724_custom_i2c_0: i2c@0 {
                         #address-cells = <1>;
                         #size-cells = <0>;
-
                         reg = <0>;
 
-                        custom_tevs_0: camera@40 {
-                            compatible = "tn,tevs";
+                        camera@40 {
+                            compatible = "onsemi,ar0234"; /* <-- Fixed match for nv_ar0234.ko */
                             reg = <0x40>;
                             status = "okay";
 
+                            sensor_model = "ar0234";
+                            use_sensor_mode_id = "false";
+                            devnode = "video0";
+
                             data-lanes = <CAM1_LANES>;
                             data-frequency = <0x230>;
-
-                            devnode = "video0";
-                            physical_w = "3.680";
-                            physical_h = "2.760";
-                            sensor_model = "tevs";
-                            use_sensor_mode_id = "false";
 
                             mode0 {
                                 mclk_khz = "24000";
@@ -81,35 +76,36 @@
                                 dpcm_enable = "false";
                                 cil_settletime = "0";
 
+                                /* AR0234: 1920x1200 Bayer */
                                 active_w = "1920";
-                                active_h = "1080";
-                                mode_type = "yuv";
-                                pixel_phase = "uyvy";
-                                csi_pixel_bit_depth = "16";
+                                active_h = "1200";
+                                mode_type = "bayer";
+                                pixel_t = "bayer_rggb"; /* adjust if needed */
+                                csi_pixel_bit_depth = "10";
                                 readout_orientation = "0";
                                 line_length = "2200";
                                 inherent_gain = "1";
                                 mclk_multiplier = "9.33";
-                                pix_clk_hz = "148500000";
+                                pix_clk_hz = "74250000";
                                 serdes_pix_clk_hz = "600000000";
 
                                 gain_factor = "16";
                                 framerate_factor = "1000000";
                                 exposure_factor = "1000000";
-                                min_gain_val = "16"; /* 1.00x */
-                                max_gain_val = "170"; /* 10.66x */
+                                min_gain_val = "16";
+                                max_gain_val = "256";
                                 step_gain_val = "1";
-                                default_gain = "16"; /* 1.00x */
+                                default_gain = "16";
                                 min_hdr_ratio = "1";
                                 max_hdr_ratio = "1";
-                                min_framerate = "15000000"; /* 15.0 fps */
-                                max_framerate = "60000000"; /* 60.0 fps */
+                                min_framerate = "15000000";
+                                max_framerate = "60000000";
                                 step_framerate = "1";
-                                default_framerate = "60000000"; /* 60.0 fps */
-                                min_exp_time = "13"; /* us */
-                                max_exp_time = "683709"; /* us */
+                                default_framerate = "60000000";
+                                min_exp_time = "13";
+                                max_exp_time = "683709";
                                 step_exp_time = "1";
-                                default_exp_time = "2495"; /* us */
+                                default_exp_time = "2495";
                                 embedded_metadata_height = "0";
                             };
 
@@ -119,10 +115,9 @@
 
                                 port@0 {
                                     reg = <0>;
-
-                                    custom_tevs_0_out: endpoint {
-                                        port-index = <2>;
-                                        bus-width = <CAM1_LANES>;
+                                    ar0234_out: endpoint {
+                                        port-index = <2>; /* serial_c */
+                                        bus-width  = <CAM1_LANES>;
                                         remote-endpoint = <&csi_in0>;
                                     };
                                 };
@@ -130,40 +125,24 @@
                         };
                     };
 
-                    max96724_custom_i2c_1: i2c@1 {
-                        #address-cells = <1>;
-                        #size-cells = <0>;
-
-                        reg = <1>;
-                    };
-
-                    max96724_custom_i2c_2: i2c@2 {
-                        #address-cells = <1>;
-                        #size-cells = <0>;
-
-                        reg = <2>;
-                    };
-
-                    max96724_custom_i2c_3: i2c@3 {
-                        #address-cells = <1>;
-                        #size-cells = <0>;
-
-                        reg = <3>;
-                    };
+                    /* Other empty channels */
+                    max96724_custom_i2c_1: i2c@1 { reg = <1>; #address-cells = <1>; #size-cells = <0>; };
+                    max96724_custom_i2c_2: i2c@2 { reg = <2>; #address-cells = <1>; #size-cells = <0>; };
+                    max96724_custom_i2c_3: i2c@3 { reg = <3>; #address-cells = <1>; #size-cells = <0>; };
                 };
 
                 channel@0 {
                     reg = <0>;
                     label = "deser_cam1_ch0";
-
-                    clock-lanes = <5>;
+                    clock-lanes = <0>;
                     data-lanes = <1 2>;
-                    link-frequencies = <0x00 0x4a817c80>;
+                    link-frequencies = /bits/ 64 <1250000000>;
                 };
             };
         };
     };
 
+    /* NVCSI routing */
     fragment@2 {
         target = <&nvcsi>;
         __overlay__ {
@@ -187,17 +166,15 @@
 
                     port@0 {
                         reg = <0>;
-
                         csi_in0: endpoint {
                             port-index = <2>;
                             bus-width = <CAM1_LANES>;
-                            remote-endpoint = <&custom_tevs_0_out>;
+                            remote-endpoint = <&ar0234_out>;
                         };
                     };
 
                     port@1 {
                         reg = <1>;
-
                         csi_out0: endpoint {
                             remote-endpoint = <&vi_in0>;
                         };
@@ -207,6 +184,7 @@
         };
     };
 
+    /* VI (Video Input) pipeline */
     fragment@3 {
         target = <&capture_vi>;
         __overlay__ {
@@ -228,7 +206,6 @@
 
                 port@0 {
                     reg = <0>;
-
                     vi_in0: endpoint {
                         vc-id = <0>;
                         port-index = <2>;
@@ -240,12 +217,13 @@
         };
     };
 
+    /* Tegra Camera Platform (TCP) mapping */
     fragment@4 {
         target = <&tcp>;
         __overlay__ {
             num_csi_lanes = <CAM1_LANES>;
             max_lane_speed = <1250000>;
-            min_bits_per_pixel = <16>;
+            min_bits_per_pixel = <10>;
             vi_peak_byte_per_pixel = <2>;
             vi_bw_margin_pct = <25>;
 
@@ -261,7 +239,7 @@
 
                 custom_module0: module0 {
                     status = "okay";
-                    badge = "custom_front_MAX96724";
+                    badge = "custom_front_MAX96724_AR0234";
                     position = "front";
                     orientation = "1";
 
