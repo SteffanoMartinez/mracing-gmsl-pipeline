@@ -1,0 +1,66 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    overlay-name = "AR0234 Full Sync + Clock Overlay";
+    compatible = "nvidia,tegra234",
+                 "nvidia,p3768-0000+p3767-0005-super";
+
+    /**********************************************************************
+     * 1) Add fixed 24 MHz clock for AR0234 sensor
+     **********************************************************************/
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            ar0234_mclk: ar0234_mclk {
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <24000000>; /* 24 MHz */
+            };
+        };
+    };
+
+    /**********************************************************************
+     * 2) Patch camera@40 (sensor node)
+     **********************************************************************/
+    fragment@1 {
+        target-path = "/bus@0/cam_i2cmux/i2c@1/max96724@28/i2c-mux/i2c@0/camera@40";
+        __overlay__ {
+            status = "okay";
+            clocks = <&ar0234_mclk>;
+            clock-names = "cam_mclk1";
+            mclk = "cam_mclk1";
+            sensor_model = "ar0234";
+            use_sensor_mode_id = "false";
+
+            /* underscore variants required by nv_ar0234.ko */
+            sync_sensor_index = <0>;
+            sync_mode = "standalone";
+            sync_link = "A";
+        };
+    };
+
+    /**********************************************************************
+     * 3) Patch channel@0 under deserializer (MAX96724@28)
+     **********************************************************************/
+    fragment@2 {
+        target-path = "/bus@0/cam_i2cmux/i2c@1/max96724@28/channel@0";
+        __overlay__ {
+            status = "okay";
+            sync_sensor_index = <0>;
+            sync_mode = "standalone";
+            sync_link = "A";
+            csi-port = "c";
+        };
+    };
+
+    /**********************************************************************
+     * 4) Optionally disable any stray 0x4e deserializer node
+     **********************************************************************/
+    fragment@3 {
+        target-path = "/bus@0/cam_i2cmux/i2c@1/max96724_b@4e";
+        __overlay__ {
+            status = "disabled";
+        };
+    };
+};
