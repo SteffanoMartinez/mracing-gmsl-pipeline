@@ -1,0 +1,4 @@
+=== Channel property hexdump ===
+00000000  00 00 00 00                                       |....|
+00000004
+-r--r--r-- 1 root root  4 Nov  1 18:30 channel

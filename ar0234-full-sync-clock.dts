@@ -2,7 +2,7 @@
 /plugin/;
 
 / {
-    overlay-name = "AR0234 Clock and Channel Overlay (driver-aligned)";
+    overlay-name = "AR0234 Clock and Channel Overlay (channel-as-string)";
     compatible = "nvidia,tegra234",
                  "nvidia,p3768-0000+p3767-0005-super";
 
@@ -18,11 +18,16 @@
         };
     };
 
-    /* 2) Sensor node (i2c@1) */
+    /* 2) Sensor node (i2c@1) — channel as string; remove legacy sync-* props */
     fragment@1 {
         target-path = "/bus@0/cam_i2cmux/i2c@1/max96724@28/i2c-mux/i2c@0/camera@40";
         __overlay__ {
             status = "okay";
+
+            /* remove legacy properties that could confuse the driver */
+            /delete-property/ sync-link;
+            /delete-property/ sync-mode;
+            /delete-property/ sync-name-index;
 
             clocks = <&ar0234_mclk>;
             clock-names = "cam_mclk1";
@@ -31,9 +36,9 @@
             sensor_model = "ar0234";
             use_sensor_mode_id = "false";
 
-            /* The driver expects these two exact integer properties */
+            /* what nv_ar0234 expects */
             sync_sensor_index = <0>;
-            channel = <0>;
+            channel = "0";
         };
     };
 
